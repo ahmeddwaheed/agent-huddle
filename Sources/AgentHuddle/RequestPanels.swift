@@ -6,7 +6,7 @@ struct PermissionPanel: View {
     let session: AgentSession
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             Text(request.summary)
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(Color.white.opacity(0.85))
@@ -15,9 +15,25 @@ struct PermissionPanel: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             HStack(spacing: 8) {
                 PillButton(title: "Allow", primary: true) { store.allow(request) }
+                if request.alwaysAllowLabel != nil {
+                    PillButton(title: "Always") { store.alwaysAllow(request) }
+                }
                 PillButton(title: "Deny") { store.deny(request) }
                 PillButton(title: "In \(Jumper.hostAppName(pid: session.pid))") { store.handOff(request, session: session) }
             }
+            if let label = request.alwaysAllowLabel {
+                Text("Always allows \(label)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.huddleDim)
+                    .lineLimit(2)
+            }
+            NoteField(placeholder: "Optional: tell Claude why you deny", text: Binding(
+                get: { store.denyNotes[request.id] ?? "" },
+                set: { store.denyNotes[request.id] = $0 }
+            )) { store.deny(request) }
+            KeyHints(hints: request.alwaysAllowLabel == nil
+                     ? ["↩ Allow", "D Deny", "Esc Close"]
+                     : ["↩ Allow", "A Always", "D Deny", "Esc Close"])
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.huddleInset))
@@ -28,20 +44,20 @@ struct QuestionPanel: View {
     @EnvironmentObject var store: HuddleStore
     let request: PendingRequest
     let session: AgentSession
-    @State private var picks: [String: Set<String>] = [:]
-    @State private var other: [String: String] = [:]
 
     var body: some View {
+        let ready = store.canSend(request)
         VStack(alignment: .leading, spacing: 14) {
             ForEach(request.questions, id: \.self) { question in
                 questionView(question)
             }
             HStack(spacing: 8) {
-                PillButton(title: "Send", primary: true) { send() }
-                    .disabled(!complete)
-                    .opacity(complete ? 1 : 0.5)
+                PillButton(title: "Send", primary: true) { store.sendAnswers(request) }
+                    .disabled(!ready)
+                    .opacity(ready ? 1 : 0.5)
                 PillButton(title: "Type in \(Jumper.hostAppName(pid: session.pid))") { store.handOff(request, session: session) }
             }
+            KeyHints(hints: ["1–\(min(request.questions.first?.options.count ?? 1, 9)) Pick", "↩ Send", "Esc Close"])
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12).fill(Color.huddleInset))
@@ -61,25 +77,20 @@ struct QuestionPanel: View {
             Text(question.text)
                 .font(.system(size: 15, weight: .bold))
                 .fixedSize(horizontal: false, vertical: true)
-            ForEach(question.options, id: \.self) { option in
-                optionRow(question, option)
+            ForEach(Array(question.options.enumerated()), id: \.element) { index, option in
+                optionRow(question, option, number: index + 1)
             }
-            TextField("Other answer…", text: Binding(
-                get: { other[question.text] ?? "" },
-                set: { other[question.text] = $0 }
-            ))
-            .textFieldStyle(.plain)
-            .font(.system(size: 13))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.06)))
+            NoteField(placeholder: "Other answer…", text: Binding(
+                get: { store.otherAnswers[request.id]?[question.text] ?? "" },
+                set: { store.otherAnswers[request.id, default: [:]][question.text] = $0 }
+            )) { store.sendAnswers(request) }
         }
     }
 
-    private func optionRow(_ question: Question, _ option: QuestionOption) -> some View {
-        let selected = picks[question.text]?.contains(option.label) ?? false
+    private func optionRow(_ question: Question, _ option: QuestionOption, number: Int) -> some View {
+        let selected = store.isPicked(request, question, option.label)
         return Button {
-            toggle(question, option.label)
+            store.toggleOption(request, question, option.label)
         } label: {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: indicator(question.multiSelect, selected))
@@ -94,6 +105,12 @@ struct QuestionPanel: View {
                     }
                 }
                 Spacer(minLength: 0)
+                if number <= 9 {
+                    Text("\(number)")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(Color.white.opacity(0.35))
+                        .padding(.top, 2)
+                }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -108,39 +125,48 @@ struct QuestionPanel: View {
         if multi { return selected ? "checkmark.square.fill" : "square" }
         return selected ? "circle.fill" : "circle"
     }
+}
 
-    private func toggle(_ question: Question, _ label: String) {
-        var current = picks[question.text] ?? []
-        if question.multiSelect {
-            if current.contains(label) { current.remove(label) } else { current.insert(label) }
-        } else {
-            current = [label]
-            other[question.text] = ""
+struct NoteField: View {
+    let placeholder: String
+    @Binding var text: String
+    let onSubmit: () -> Void
+    @State private var editing = false
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        Group {
+            if editing || !text.isEmpty {
+                TextField(placeholder, text: $text)
+                    .textFieldStyle(.plain)
+                    .focused($focused)
+                    .onSubmit(onSubmit)
+                    .onChange(of: focused) { _, isFocused in
+                        if !isFocused, text.isEmpty { editing = false }
+                    }
+                    .onAppear { focused = editing }
+            } else {
+                Text(placeholder)
+                    .foregroundStyle(Color.white.opacity(0.3))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { editing = true }
+            }
         }
-        picks[question.text] = current
+        .font(.system(size: 13))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.06)))
     }
+}
 
-    private func answer(for question: Question) -> String? {
-        let typed = (other[question.text] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let chosen = question.options.map(\.label).filter { picks[question.text]?.contains($0) ?? false }
-        if question.multiSelect {
-            let all = chosen + (typed.isEmpty ? [] : [typed])
-            return all.isEmpty ? nil : all.joined(separator: ", ")
-        }
-        if !typed.isEmpty { return typed }
-        return chosen.first
-    }
+struct KeyHints: View {
+    let hints: [String]
 
-    private var complete: Bool {
-        request.questions.allSatisfy { answer(for: $0) != nil }
-    }
-
-    private func send() {
-        var answers: [String: String] = [:]
-        for question in request.questions {
-            if let value = answer(for: question) { answers[question.text] = value }
-        }
-        store.answer(request, answers: answers)
+    var body: some View {
+        Text(hints.joined(separator: "  ·  "))
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color.white.opacity(0.35))
     }
 }
 

@@ -8,11 +8,27 @@ A small macOS menu bar widget that shows every Claude Code session you have runn
 
 - See each agent's current step, its task progress and a step-by-step log.
 - Allow or deny permission requests without going back to the terminal.
+- **Always allow** a command with one click (uses the same rule suggestions as Claude Code's "don't ask again").
+- Deny with a note that tells Claude what to do instead.
 - Answer `AskUserQuestion` questions from the widget (single choice, multiple choice or your own text).
 - Jump to the terminal that runs a session, or cross a session off when it is done.
 - When an agent needs you, the widget opens by itself on that agent. It does not take keyboard focus from the app you use.
 - Hear a sound when an agent needs you or finishes.
 - Open or close it from anywhere with **⌃⌥A** (Control + Option + A).
+- Sessions that have been idle for more than 1 hour go into one "done earlier" row.
+
+### Keyboard
+
+| Key | Action |
+|---|---|
+| ⌃⌥A | Open or close the widget (opens on the agent that needs you) |
+| ↩ | Allow, or send the answer |
+| A | Always allow |
+| D | Deny (with your note, if you typed one) |
+| 1–9 | Pick an answer option |
+| Esc | Close |
+
+Text fields take focus only when you click them, so the keys above always work.
 
 The prompt still shows in your terminal too. Answer wherever is closer; the other side clears itself.
 
@@ -62,6 +78,7 @@ Agent Huddle (menu bar) ◀── reads ─────────────�
 - **Sessions** come from `~/.claude/sessions/*.json` (one file per live session).
 - **Steps, tasks and terminal output** come from the session transcript in `~/.claude/projects/`.
   For big transcripts the widget reads only the last 3 MB.
+- **Request files are private** (`~/.claude/huddle` is `700`), because commands can contain secrets.
 - **The hook only waits while the widget runs.** The widget writes a heartbeat file every second.
   If the widget is not running, the hook returns at once and Claude Code asks in the terminal as usual.
 - **If you answer in the terminal**, the hook sees the tool result in the transcript and stops waiting.
@@ -83,6 +100,12 @@ Show demo data instead of your real sessions (used for the README pictures):
 HUDDLE_DEMO=permission HUDDLE_SNAPSHOT=docs/permission.png .build/release/AgentHuddle
 HUDDLE_DEMO=question HUDDLE_SNAPSHOT=docs/question.png .build/release/AgentHuddle
 HUDDLE_DEMO=detail HUDDLE_DETAIL=1 HUDDLE_SNAPSHOT=docs/detail.png .build/release/AgentHuddle
+```
+
+Test the key actions against a real hook request (no Accessibility permission needed):
+
+```sh
+HUDDLE_TEST_KEYS="2,return" .build/release/AgentHuddle
 ```
 
 ## License

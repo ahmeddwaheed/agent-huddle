@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let popover = NSPopover()
     private var cancellables = Set<AnyCancellable>()
     private var hotKey: HotKey?
+    private var keyMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -33,7 +34,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateButton()
 
         hotKey = HotKey(keyCode: kVK_ANSI_A, modifiers: controlKey | optionKey) { [weak self] in
-            DispatchQueue.main.async { self?.togglePopover() }
+            DispatchQueue.main.async { self?.hotKeyPressed() }
+        }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self else { return event }
+            return self.handleKeyDown(event) ? nil : event
+        }
+
+        if let keys = ProcessInfo.processInfo.environment["HUDDLE_TEST_KEYS"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                for key in keys.split(separator: ",") { _ = self?.store.handleKey(String(key)) }
+            }
         }
 
         if let path = ProcessInfo.processInfo.environment["HUDDLE_SNAPSHOT"] {
@@ -41,8 +52,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if ProcessInfo.processInfo.environment["HUDDLE_DETAIL"] != nil {
                     self?.store.selectedId = self?.store.visibleSessions.first?.id
                 }
-                self?.togglePopover()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self?.snapshot(to: path) }
+                guard let self, let button = self.statusItem.button else { return }
+                self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { self.snapshot(to: path) }
             }
         }
     }
@@ -66,9 +78,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         store.selectedId = request.sessionId
         guard let button = statusItem.button else { return }
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeFirstResponder(nil)
         if let path = ProcessInfo.processInfo.environment["HUDDLE_ATTENTION_SNAPSHOT"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.snapshot(to: path) }
         }
+    }
+
+    private func hotKeyPressed() {
+        guard popover.isShown else { return togglePopover() }
+        if NSApp.isActive, popover.contentViewController?.view.window?.isKeyWindow == true {
+            popover.performClose(nil)
+        } else {
+            focusPopover()
+        }
+    }
+
+    private func focusPopover() {
+        NSApp.activate()
+        guard let window = popover.contentViewController?.view.window else { return }
+        window.makeKey()
+        DispatchQueue.main.async { window.makeFirstResponder(nil) }
+    }
+
+    private func handleKeyDown(_ event: NSEvent) -> Bool {
+        guard popover.isShown, event.window === popover.contentViewController?.view.window else { return false }
+        if event.keyCode == UInt16(kVK_Escape) {
+            if let textView = event.window?.firstResponder as? NSTextView, !textView.string.isEmpty {
+                return false
+            }
+            popover.performClose(nil)
+            return true
+        }
+        if event.window?.firstResponder is NSTextView { return false }
+        let modifiers = event.modifierFlags.intersection([.command, .control, .option])
+        guard modifiers.isEmpty else { return false }
+        let isReturn = event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter)
+        let key = isReturn ? "return" : (event.charactersIgnoringModifiers ?? "").lowercased()
+        return store.handleKey(key)
     }
 
     @objc private func togglePopover() {
@@ -76,9 +122,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            NSApp.activate()
+            if store.selectedId == nil, let request = store.activeRequest {
+                store.selectedId = request.sessionId
+            }
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
+            focusPopover()
         }
     }
 

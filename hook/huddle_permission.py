@@ -23,9 +23,15 @@ def app_alive():
 
 def write_atomic(path, payload):
     tmp = path + ".tmp"
-    with open(tmp, "w") as f:
+    with os.fdopen(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
         json.dump(payload, f)
     os.replace(tmp, path)
+
+
+def make_private_dirs():
+    for path in (BASE, PENDING, RESPONSES):
+        os.makedirs(path, mode=0o700, exist_ok=True)
+        os.chmod(path, 0o700)
 
 
 def remove(*paths):
@@ -92,8 +98,7 @@ def main():
     if not app_alive():
         return
 
-    os.makedirs(PENDING, exist_ok=True)
-    os.makedirs(RESPONSES, exist_ok=True)
+    make_private_dirs()
     request_id = uuid.uuid4().hex
     pending_path = os.path.join(PENDING, request_id + ".json")
     response_path = os.path.join(RESPONSES, request_id + ".json")
@@ -111,6 +116,7 @@ def main():
         "cwd": data.get("cwd"),
         "toolName": data.get("tool_name"),
         "toolInput": data.get("tool_input") or {},
+        "suggestions": data.get("permission_suggestions") or [],
         "createdAt": time.time(),
         "hookPid": os.getpid(),
     })
@@ -142,6 +148,8 @@ def main():
     decision = {"behavior": response["behavior"]}
     if response["behavior"] == "allow" and response.get("updatedInput") is not None:
         decision["updatedInput"] = response["updatedInput"]
+    if response["behavior"] == "allow" and response.get("updatedPermissions"):
+        decision["updatedPermissions"] = response["updatedPermissions"]
     if response["behavior"] == "deny":
         decision["message"] = response.get("message") or "The user denied this in Agent Huddle."
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": decision}}))

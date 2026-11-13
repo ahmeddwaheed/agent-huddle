@@ -40,10 +40,14 @@ enum Demo {
         infra.steps = (1...9).map { Step(id: "i\($0)", kind: .terminal, label: "Run tests", done: true) }
 
         var docs = AgentSession(id: "demo-docs-1", pid: 0, cwd: "/work/docs", startedAt: 4, name: "", status: "idle", statusUpdatedAt: now)
+        var old1 = AgentSession(id: "demo-old-1", pid: 0, cwd: "/work/api", startedAt: 5, name: "", status: "idle", statusUpdatedAt: now - 7_200_000)
+        old1.title = "Bump dependencies"
+        var old2 = AgentSession(id: "demo-old-2", pid: 0, cwd: "/work/web", startedAt: 6, name: "", status: "idle", statusUpdatedAt: now - 9_000_000)
+        old2.title = "Fix login redirect"
         docs.title = "Release notes"
         docs.steps = (1...23).map { Step(id: "d\($0)", kind: .read, label: "Read CHANGELOG.md", done: true) }
 
-        return [api, web, infra, docs]
+        return [api, web, infra, docs, old1, old2]
     }
 
     static func pending() -> [PendingRequest] {
@@ -51,7 +55,9 @@ enum Demo {
         case "permission":
             return [PendingRequest(
                 id: "demo-perm", sessionId: "demo-infra-7", toolName: "Bash",
-                rawInput: ["command": "docker compose up -d postgres"], createdAt: 1, hookPid: 0
+                rawInput: ["command": "docker compose up -d postgres"], createdAt: 1, hookPid: 0,
+                suggestions: [["type": "addRules", "destination": "localSettings", "behavior": "allow",
+                               "rules": [["toolName": "Bash", "ruleContent": "docker compose up:*"]]]]
             )]
         case "question":
             return [PendingRequest(

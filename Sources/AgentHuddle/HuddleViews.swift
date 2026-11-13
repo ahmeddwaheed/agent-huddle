@@ -80,8 +80,39 @@ struct SessionList: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 30)
             }
-            ForEach(store.visibleSessions) { session in
+            ForEach(store.recentSessions) { session in
                 SessionCard(session: session, pending: store.pendingRequest(for: session.id))
+            }
+            let older = store.olderDoneSessions
+            if !older.isEmpty {
+                Button {
+                    store.showOlderDone.toggle()
+                } label: {
+                    HStack(spacing: 8) {
+                        HStack(spacing: -6) {
+                            ForEach(older.prefix(4)) { session in
+                                MiniRobot(color: .robot(for: session.id)).scaleEffect(0.7).opacity(0.6)
+                            }
+                        }
+                        Text("\(older.count) done earlier")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.huddleDim)
+                        Spacer()
+                        Image(systemName: store.showOlderDone ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.huddleDim)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.huddleCard.opacity(0.6)))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                if store.showOlderDone {
+                    ForEach(older) { session in
+                        SessionCard(session: session, pending: nil)
+                    }
+                }
             }
         }
     }

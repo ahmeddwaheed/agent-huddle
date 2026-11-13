@@ -43,6 +43,12 @@ struct PendingRequest: Identifiable {
     let rawInput: [String: Any]
     let createdAt: Double
     let hookPid: Int32
+    var suggestions: [[String: Any]] = []
+
+    var alwaysAllowLabel: String? {
+        let parts = suggestions.compactMap(describeSuggestion)
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
 
     var isQuestion: Bool { toolName == "AskUserQuestion" }
 
@@ -123,4 +129,34 @@ func prettyToolName(_ name: String) -> String {
     let server = parts[1]
     let tool = parts.dropFirst(2).joined(separator: "_")
     return "\(tool) (\(server))"
+}
+
+func describeSuggestion(_ suggestion: [String: Any]) -> String? {
+    let place: String
+    switch suggestion["destination"] as? String {
+    case "session": place = "for this session"
+    case "localSettings": place = "in this project (local)"
+    case "projectSettings": place = "in this project"
+    case "userSettings": place = "in all projects"
+    default: place = ""
+    }
+    switch suggestion["type"] as? String {
+    case "addRules", "replaceRules":
+        let rules = (suggestion["rules"] as? [[String: Any]] ?? []).map { rule -> String in
+            let tool = rule["toolName"] as? String ?? ""
+            guard let content = rule["ruleContent"] as? String, !content.isEmpty else { return tool }
+            return "\(tool)(\(content))"
+        }
+        guard !rules.isEmpty else { return nil }
+        return "\(rules.joined(separator: ", ")) \(place)"
+    case "addDirectories":
+        let folders = (suggestion["directories"] as? [String] ?? []).map(shortPath)
+        return "folder \(folders.joined(separator: ", ")) \(place)"
+    case "setMode":
+        let modes = ["acceptEdits": "auto-accept edits", "plan": "plan mode", "bypassPermissions": "skip all permission checks"]
+        let mode = suggestion["mode"] as? String ?? ""
+        return "\(modes[mode] ?? mode) \(place)"
+    default:
+        return nil
+    }
 }

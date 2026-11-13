@@ -7,6 +7,10 @@ final class HuddleStore: ObservableObject {
     @Published private(set) var pending: [PendingRequest] = []
     @Published var selectedId: String?
     @Published var compact = false
+    @Published var showOlderDone = false
+    @Published var picks: [String: [String: Set<String>]] = [:]
+    @Published var otherAnswers: [String: [String: String]] = [:]
+    @Published var denyNotes: [String: String] = [:]
     @Published var soundOn: Bool {
         didSet { UserDefaults.standard.set(soundOn, forKey: "soundOn") }
     }
@@ -37,8 +41,11 @@ final class HuddleStore: ObservableObject {
             pending = Demo.pending()
             return
         }
-        try? FileManager.default.createDirectory(at: pendingDir, withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(at: responsesDir, withIntermediateDirectories: true)
+        let privateDir: [FileAttributeKey: Any] = [.posixPermissions: 0o700]
+        for dir in [huddleDir, pendingDir, responsesDir] {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: privateDir)
+            try? FileManager.default.setAttributes(privateDir, ofItemAtPath: dir.path)
+        }
         tick()
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.tick() }
@@ -52,6 +59,14 @@ final class HuddleStore: ObservableObject {
             if a.isBusy != b.isBusy { return a.isBusy }
             return a.startedAt < b.startedAt
         }
+    }
+
+    var recentSessions: [AgentSession] { visibleSessions.filter { !isOlderDone($0) } }
+    var olderDoneSessions: [AgentSession] { visibleSessions.filter { isOlderDone($0) } }
+
+    var activeRequest: PendingRequest? {
+        if let selectedId { return pendingRequest(for: selectedId) }
+        return visibleSessions.lazy.compactMap { self.pendingRequest(for: $0.id) }.first
     }
 
     var needsAttention: Bool { !pending.isEmpty }
@@ -81,14 +96,74 @@ final class HuddleStore: ObservableObject {
         respond(request, ["behavior": "allow"])
     }
 
-    func deny(_ request: PendingRequest) {
-        respond(request, ["behavior": "deny", "message": "The user denied this in Agent Huddle."])
+    func alwaysAllow(_ request: PendingRequest) {
+        guard !request.suggestions.isEmpty else { return allow(request) }
+        respond(request, ["behavior": "allow", "updatedPermissions": request.suggestions])
     }
 
-    func answer(_ request: PendingRequest, answers: [String: String]) {
+    func deny(_ request: PendingRequest) {
+        let note = (denyNotes[request.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = note.isEmpty ? "The user denied this in Agent Huddle." : "The user denied this. Their note: \(note)"
+        respond(request, ["behavior": "deny", "message": message])
+    }
+
+    func toggleOption(_ request: PendingRequest, _ question: Question, _ label: String) {
+        var current = picks[request.id]?[question.text] ?? []
+        if question.multiSelect {
+            if current.contains(label) { current.remove(label) } else { current.insert(label) }
+        } else {
+            current = [label]
+            otherAnswers[request.id, default: [:]][question.text] = ""
+        }
+        picks[request.id, default: [:]][question.text] = current
+    }
+
+    func isPicked(_ request: PendingRequest, _ question: Question, _ label: String) -> Bool {
+        picks[request.id]?[question.text]?.contains(label) ?? false
+    }
+
+    func answerText(_ request: PendingRequest, _ question: Question) -> String? {
+        let typed = (otherAnswers[request.id]?[question.text] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let chosen = question.options.map(\.label).filter { isPicked(request, question, $0) }
+        if question.multiSelect {
+            let all = chosen + (typed.isEmpty ? [] : [typed])
+            return all.isEmpty ? nil : all.joined(separator: ", ")
+        }
+        return typed.isEmpty ? chosen.first : typed
+    }
+
+    func canSend(_ request: PendingRequest) -> Bool {
+        request.questions.allSatisfy { answerText(request, $0) != nil }
+    }
+
+    func sendAnswers(_ request: PendingRequest) {
+        guard canSend(request) else { return }
+        var answers: [String: String] = [:]
+        for question in request.questions {
+            answers[question.text] = answerText(request, question)
+        }
         var input = request.rawInput
         input["answers"] = answers
         respond(request, ["behavior": "allow", "updatedInput": input])
+    }
+
+    func handleKey(_ key: String) -> Bool {
+        guard let request = activeRequest else { return false }
+        switch key {
+        case "return":
+            if request.isQuestion { sendAnswers(request) } else { allow(request) }
+        case "a" where !request.isQuestion:
+            alwaysAllow(request)
+        case "d" where !request.isQuestion:
+            deny(request)
+        default:
+            guard request.isQuestion, let number = Int(key), number >= 1 else { return false }
+            let questions = request.questions
+            guard let question = questions.first(where: { answerText(request, $0) == nil }) ?? questions.first,
+                  number <= question.options.count else { return false }
+            toggleOption(request, question, question.options[number - 1].label)
+        }
+        return true
     }
 
     func handOff(_ request: PendingRequest, session: AgentSession) {
@@ -102,6 +177,14 @@ final class HuddleStore: ObservableObject {
         try? data.write(to: url, options: .atomic)
         answeredIds.insert(request.id)
         pending.removeAll { $0.id == request.id }
+        picks[request.id] = nil
+        otherAnswers[request.id] = nil
+        denyNotes[request.id] = nil
+    }
+
+    private func isOlderDone(_ session: AgentSession) -> Bool {
+        guard !session.isBusy, pendingRequest(for: session.id) == nil else { return false }
+        return Date().timeIntervalSince1970 - session.statusUpdatedAt / 1000 > 3600
     }
 
     private func isVisible(_ session: AgentSession) -> Bool {
@@ -164,7 +247,8 @@ final class HuddleStore: ObservableObject {
                 toolName: obj["toolName"] as? String ?? "",
                 rawInput: obj["toolInput"] as? [String: Any] ?? [:],
                 createdAt: (obj["createdAt"] as? NSNumber)?.doubleValue ?? 0,
-                hookPid: hookPid
+                hookPid: hookPid,
+                suggestions: obj["suggestions"] as? [[String: Any]] ?? []
             ))
         }
         result.sort { $0.createdAt < $1.createdAt }
