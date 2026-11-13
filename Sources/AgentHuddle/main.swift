@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.appearance = NSAppearance(named: .darkAqua)
 
         store.closePopover = { [weak self] in self?.popover.performClose(nil) }
+        store.onNewRequest = { [weak self] request in self?.showAttention(for: request) }
         store.objectWillChange
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateButton() }
@@ -54,6 +55,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         view.cacheDisplay(in: view.bounds, to: rep)
         try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+    }
+
+    private func showAttention(for request: PendingRequest) {
+        if popover.isShown {
+            let current = store.selectedId.flatMap { store.pendingRequest(for: $0) }
+            if current == nil { store.selectedId = request.sessionId }
+            return
+        }
+        store.selectedId = request.sessionId
+        guard let button = statusItem.button else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        if let path = ProcessInfo.processInfo.environment["HUDDLE_ATTENTION_SNAPSHOT"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.snapshot(to: path) }
+        }
     }
 
     @objc private func togglePopover() {

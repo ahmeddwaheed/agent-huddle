@@ -6,6 +6,7 @@ A small macOS menu bar widget that shows every Claude Code session you have runn
 - Allow or deny permission requests without going back to the terminal.
 - Answer `AskUserQuestion` questions from the widget (single choice, multiple choice or your own text).
 - Jump to the terminal that runs a session, or cross a session off when it is done.
+- When an agent needs you, the widget opens by itself on that agent. It does not take keyboard focus from the app you use.
 - Hear a sound when an agent needs you or finishes.
 - Open or close it from anywhere with **⌃⌥A** (Control + Option + A).
 

@@ -12,6 +12,7 @@ final class HuddleStore: ObservableObject {
     }
 
     var closePopover: () -> Void = {}
+    var onNewRequest: (PendingRequest) -> Void = { _ in }
 
     private let huddleDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/huddle")
     private var pendingDir: URL { huddleDir.appendingPathComponent("pending") }
@@ -162,7 +163,11 @@ final class HuddleStore: ObservableObject {
         }
         result.sort { $0.createdAt < $1.createdAt }
 
-        if !Set(result.map(\.id)).subtracting(knownPendingIds).isEmpty { play("Glass") }
+        let newRequests = result.filter { !knownPendingIds.contains($0.id) }
+        if let newest = newRequests.last {
+            play("Glass")
+            onNewRequest(newest)
+        }
         knownPendingIds = Set(result.map(\.id))
         answeredIds.formIntersection(knownPendingIds)
         pending = result
