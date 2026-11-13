@@ -18,7 +18,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.action = #selector(togglePopover)
         statusItem.button?.imagePosition = .imageLeading
 
-        let host = NSHostingController(rootView: HuddleRoot().environmentObject(store))
+        let snapshotMode = ProcessInfo.processInfo.environment["HUDDLE_SNAPSHOT"] != nil
+        let host = NSHostingController(rootView: HuddleRoot(solidBackground: snapshotMode).environmentObject(store))
         host.sizingOptions = .preferredContentSize
         popover.contentViewController = host
         popover.behavior = .transient
