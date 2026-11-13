@@ -31,6 +31,12 @@ final class HuddleStore: ObservableObject {
     init() {
         soundOn = UserDefaults.standard.object(forKey: "soundOn") as? Bool ?? true
         dismissed = UserDefaults.standard.dictionary(forKey: "dismissed") as? [String: Double] ?? [:]
+        if Demo.mode != nil {
+            dismissed = [:]
+            sessions = Demo.sessions()
+            pending = Demo.pending()
+            return
+        }
         try? FileManager.default.createDirectory(at: pendingDir, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: responsesDir, withIntermediateDirectories: true)
         tick()

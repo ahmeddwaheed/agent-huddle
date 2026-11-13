@@ -2,6 +2,10 @@
 
 A small macOS menu bar widget that shows every Claude Code session you have running.
 
+| All agents | Answer a question | Step by step |
+|---|---|---|
+| ![All agents with a permission request](docs/permission.png) | ![A question from an agent](docs/question.png) | ![Detail view of one agent](docs/detail.png) |
+
 - See each agent's current step, its task progress and a step-by-step log.
 - Allow or deny permission requests without going back to the terminal.
 - Answer `AskUserQuestion` questions from the widget (single choice, multiple choice or your own text).
@@ -71,6 +75,14 @@ Save a picture of the widget without screen-recording permission:
 ```sh
 HUDDLE_SNAPSHOT=/tmp/huddle.png .build/release/AgentHuddle
 HUDDLE_DETAIL=1 HUDDLE_SNAPSHOT=/tmp/detail.png .build/release/AgentHuddle
+```
+
+Show demo data instead of your real sessions (used for the README pictures):
+
+```sh
+HUDDLE_DEMO=permission HUDDLE_SNAPSHOT=docs/permission.png .build/release/AgentHuddle
+HUDDLE_DEMO=question HUDDLE_SNAPSHOT=docs/question.png .build/release/AgentHuddle
+HUDDLE_DEMO=detail HUDDLE_DETAIL=1 HUDDLE_SNAPSHOT=docs/detail.png .build/release/AgentHuddle
 ```
 
 ## License
