@@ -44,6 +44,7 @@ struct PendingRequest: Identifiable {
     let createdAt: Double
     let hookPid: Int32
     var suggestions: [[String: Any]] = []
+    var agentType: String?
 
     var alwaysAllowLabel: String? {
         let parts = suggestions.compactMap(describeSuggestion)

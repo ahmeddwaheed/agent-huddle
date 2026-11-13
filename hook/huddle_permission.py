@@ -117,6 +117,7 @@ def main():
         "toolName": data.get("tool_name"),
         "toolInput": data.get("tool_input") or {},
         "suggestions": data.get("permission_suggestions") or [],
+        "agentType": data.get("agent_type"),
         "createdAt": time.time(),
         "hookPid": os.getpid(),
     })

@@ -43,8 +43,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if let keys = ProcessInfo.processInfo.environment["HUDDLE_TEST_KEYS"] {
+            guard let testSession = ProcessInfo.processInfo.environment["HUDDLE_TEST_SESSION"] else {
+                fatalError("HUDDLE_TEST_KEYS needs HUDDLE_TEST_SESSION, so test keys never touch a real request")
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-                for key in keys.split(separator: ",") { _ = self?.store.handleKey(String(key)) }
+                guard let self else { return }
+                self.store.selectedId = testSession
+                for key in keys.split(separator: ",") {
+                    guard self.store.activeRequest?.sessionId == testSession else { break }
+                    _ = self.store.handleKey(String(key))
+                }
             }
         }
 
@@ -113,8 +121,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if event.window?.firstResponder is NSTextView { return false }
         let modifiers = event.modifierFlags.intersection([.command, .control, .option])
         guard modifiers.isEmpty else { return false }
-        let isReturn = event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter)
-        let key = isReturn ? "return" : (event.charactersIgnoringModifiers ?? "").lowercased()
+        let named: [Int: String] = [kVK_Return: "return", kVK_ANSI_KeypadEnter: "return", kVK_LeftArrow: "left", kVK_RightArrow: "right"]
+        let key = named[Int(event.keyCode)] ?? (event.charactersIgnoringModifiers ?? "").lowercased()
         return store.handleKey(key)
     }
 

@@ -159,7 +159,7 @@ struct SessionCard: View {
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(1)
                         .padding(.trailing, hovering ? 44 : 0)
-                    Text(sessionSubtitle(session, pending: pending))
+                    Text(sessionSubtitle(session, pending: pending, waiting: store.pendingRequests(for: session.id).count))
                         .font(.system(size: 11.5, weight: pending == nil ? .regular : .medium))
                         .foregroundStyle(pending == nil ? Color.huddleDim : Color.huddleLime)
                         .lineLimit(1)
@@ -197,7 +197,8 @@ struct SessionCard: View {
     }
 }
 
-func sessionSubtitle(_ session: AgentSession, pending: PendingRequest?) -> String {
+func sessionSubtitle(_ session: AgentSession, pending: PendingRequest?, waiting: Int = 1) -> String {
+    if waiting > 1 { return "\(waiting) requests waiting" }
     if let pending { return pending.isQuestion ? "Asks a question" : "Needs permission" }
     if !session.isBusy { return "Done · waiting for you" }
     if let todo = session.activeTodo { return todo.activeForm ?? todo.title }
@@ -242,7 +243,7 @@ struct DetailView: View {
                 RobotAvatar(color: .robot(for: session.id), size: 34, active: session.isBusy)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(session.displayTitle).font(.system(size: 14, weight: .semibold)).lineLimit(2)
-                    Text(sessionSubtitle(session, pending: pending))
+                    Text(sessionSubtitle(session, pending: pending, waiting: store.pendingRequests(for: session.id).count))
                         .font(.system(size: 12))
                         .foregroundStyle(pending == nil ? Color.huddleDim : Color.huddleLime)
                     ProgressRow(session: session, large: true).padding(.top, 5)

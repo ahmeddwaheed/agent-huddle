@@ -33,9 +33,9 @@ struct PermissionPanel: View {
                 get: { store.denyNotes[request.id] ?? "" },
                 set: { store.denyNotes[request.id] = $0 }
             )) { store.deny(request) }
-            KeyHints(hints: request.alwaysAllowLabel == nil
-                     ? ["↩ Allow", "D Deny", "Esc Close"]
-                     : ["↩ Allow", "A Always", "D Deny", "Esc Close"])
+            KeyHints(hints: (request.alwaysAllowLabel == nil
+                     ? ["↩ Allow", "D Deny"]
+                     : ["↩ Allow", "A Always", "D Deny"]) + (store.queuePosition(of: request).count > 1 ? ["← → Switch"] : []) + ["Esc Close"])
         }
     }
 }
@@ -57,7 +57,7 @@ struct QuestionPanel: View {
                     .opacity(ready ? 1 : 0.5)
                 PillButton(title: "Type in \(Jumper.hostAppName(pid: session.pid))") { store.handOff(request, session: session) }
             }
-            KeyHints(hints: ["1–\(min(request.questions.first?.options.count ?? 1, 9)) Pick", "↩ Send", "Esc Close"])
+            KeyHints(hints: ["1–\(min(request.questions.first?.options.count ?? 1, 9)) Pick", "↩ Send"] + (store.queuePosition(of: request).count > 1 ? ["← → Switch"] : []) + ["Esc Close"])
         }
     }
 
@@ -172,14 +172,59 @@ struct KeyHints: View {
 }
 
 struct RequestPanel: View {
+    @EnvironmentObject var store: HuddleStore
     let request: PendingRequest
     let session: AgentSession
 
     var body: some View {
-        if request.isQuestion {
-            QuestionPanel(request: request, session: session)
-        } else {
-            PermissionPanel(request: request, session: session)
+        let position = store.queuePosition(of: request)
+        VStack(alignment: .leading, spacing: 8) {
+            if position.count > 1 || request.agentType != nil {
+                QueueBar(request: request, position: position)
+            }
+            Group {
+                if request.isQuestion {
+                    QuestionPanel(request: request, session: session)
+                } else {
+                    PermissionPanel(request: request, session: session)
+                }
+            }
+            .id(request.id)
+            .transition(.opacity)
         }
+        .animation(.easeOut(duration: 0.15), value: request.id)
+    }
+}
+
+struct QueueBar: View {
+    @EnvironmentObject var store: HuddleStore
+    let request: PendingRequest
+    let position: (index: Int, count: Int)
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let agent = request.agentType {
+                Label(agent, systemImage: "person.2")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(Color.huddleDim)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            if position.count > 1 {
+                Text("\(position.index) of \(position.count)")
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.huddleDim)
+                HStack(spacing: 0) {
+                    IconButton(symbol: "chevron.left", help: "Previous request (←)") {
+                        store.moveInQueue(sessionId: request.sessionId, by: -1)
+                    }
+                    IconButton(symbol: "chevron.right", help: "Next request (→)") {
+                        store.moveInQueue(sessionId: request.sessionId, by: 1)
+                    }
+                }
+            }
+        }
+        .frame(height: 22)
     }
 }

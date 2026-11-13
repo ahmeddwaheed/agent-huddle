@@ -74,6 +74,15 @@ enum Demo {
                 ]]],
                 createdAt: 1, hookPid: 0
             )]
+        case "queue":
+            let commands = ["docker compose up -d postgres", "npm run test:integration", "rm -rf .cache/jest"]
+            return commands.enumerated().map { index, command in
+                PendingRequest(
+                    id: "demo-queue-\(index)", sessionId: "demo-infra-7", toolName: "Bash",
+                    rawInput: ["command": command], createdAt: Double(index), hookPid: 0,
+                    agentType: index == 0 ? nil : "test-runner"
+                )
+            }
         default:
             return []
         }

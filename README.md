@@ -10,6 +10,7 @@ A small macOS menu bar widget that shows every Claude Code session you have runn
 - Allow or deny permission requests without going back to the terminal.
 - **Always allow** a command with one click (uses the same rule suggestions as Claude Code's "don't ask again").
 - Deny with a note that tells Claude what to do instead.
+- When one session has several requests at the same time (for example parallel subagents), they wait in a queue: "1 of 3", with arrows to move between them. Requests from a subagent show the subagent's name.
 - Answer `AskUserQuestion` questions from the widget (single choice, multiple choice or your own text).
 - Jump to the terminal that runs a session, or cross a session off when it is done.
 - When an agent needs you, the widget opens by itself on that agent. It does not take keyboard focus from the app you use.
@@ -26,6 +27,7 @@ A small macOS menu bar widget that shows every Claude Code session you have runn
 | A | Always allow |
 | D | Deny (with your note, if you typed one) |
 | 1–9 | Pick an answer option |
+| ← → | Move between requests from the same session |
 | Esc | Close |
 
 Text fields take focus only when you click them, so the keys above always work.
@@ -106,7 +108,7 @@ HUDDLE_DEMO=detail HUDDLE_DETAIL=1 HUDDLE_SNAPSHOT=docs/detail.png .build/releas
 Test the key actions against a real hook request (no Accessibility permission needed):
 
 ```sh
-HUDDLE_TEST_KEYS="2,return" .build/release/AgentHuddle
+HUDDLE_TEST_SESSION=<session id of your test request> HUDDLE_TEST_KEYS="2,return" .build/release/AgentHuddle
 ```
 
 ## License

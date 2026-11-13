@@ -11,6 +11,7 @@ final class HuddleStore: ObservableObject {
     @Published var picks: [String: [String: Set<String>]] = [:]
     @Published var otherAnswers: [String: [String: String]] = [:]
     @Published var denyNotes: [String: String] = [:]
+    @Published private var focusedRequestIds: [String: String] = [:]
     @Published var soundOn: Bool {
         didSet { UserDefaults.standard.set(soundOn, forKey: "soundOn") }
     }
@@ -72,8 +73,29 @@ final class HuddleStore: ObservableObject {
     var needsAttention: Bool { !pending.isEmpty }
     var anyBusy: Bool { visibleSessions.contains { $0.isBusy } }
 
+    func pendingRequests(for sessionId: String) -> [PendingRequest] {
+        pending.filter { $0.sessionId == sessionId }
+    }
+
     func pendingRequest(for sessionId: String) -> PendingRequest? {
-        pending.first { $0.sessionId == sessionId }
+        let queue = pendingRequests(for: sessionId)
+        if let focused = focusedRequestIds[sessionId], let match = queue.first(where: { $0.id == focused }) {
+            return match
+        }
+        return queue.first
+    }
+
+    func queuePosition(of request: PendingRequest) -> (index: Int, count: Int) {
+        let queue = pendingRequests(for: request.sessionId)
+        return ((queue.firstIndex { $0.id == request.id } ?? 0) + 1, queue.count)
+    }
+
+    func moveInQueue(sessionId: String, by delta: Int) {
+        let queue = pendingRequests(for: sessionId)
+        guard queue.count > 1, let current = pendingRequest(for: sessionId),
+              let index = queue.firstIndex(where: { $0.id == current.id }) else { return }
+        let next = (index + delta + queue.count) % queue.count
+        focusedRequestIds[sessionId] = queue[next].id
     }
 
     func session(_ id: String?) -> AgentSession? {
@@ -150,6 +172,10 @@ final class HuddleStore: ObservableObject {
     func handleKey(_ key: String) -> Bool {
         guard let request = activeRequest else { return false }
         switch key {
+        case "left":
+            moveInQueue(sessionId: request.sessionId, by: -1)
+        case "right":
+            moveInQueue(sessionId: request.sessionId, by: 1)
         case "return":
             if request.isQuestion { sendAnswers(request) } else { allow(request) }
         case "a" where !request.isQuestion:
@@ -248,7 +274,8 @@ final class HuddleStore: ObservableObject {
                 rawInput: obj["toolInput"] as? [String: Any] ?? [:],
                 createdAt: (obj["createdAt"] as? NSNumber)?.doubleValue ?? 0,
                 hookPid: hookPid,
-                suggestions: obj["suggestions"] as? [[String: Any]] ?? []
+                suggestions: obj["suggestions"] as? [[String: Any]] ?? [],
+                agentType: obj["agentType"] as? String
             ))
         }
         result.sort { $0.createdAt < $1.createdAt }
@@ -259,6 +286,7 @@ final class HuddleStore: ObservableObject {
             onNewRequest(newest)
         }
         knownPendingIds = Set(result.map(\.id))
+        focusedRequestIds = focusedRequestIds.filter { knownPendingIds.contains($0.value) }
         answeredIds.formIntersection(knownPendingIds)
         pending = result
     }
