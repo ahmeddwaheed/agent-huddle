@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import SwiftUI
 
@@ -8,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private let popover = NSPopover()
     private var cancellables = Set<AnyCancellable>()
+    private var hotKey: HotKey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -28,6 +30,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.updateButton() }
             .store(in: &cancellables)
         updateButton()
+
+        hotKey = HotKey(keyCode: kVK_ANSI_A, modifiers: controlKey | optionKey) { [weak self] in
+            DispatchQueue.main.async { self?.togglePopover() }
+        }
 
         if let path = ProcessInfo.processInfo.environment["HUDDLE_SNAPSHOT"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in

@@ -7,6 +7,7 @@ A small macOS menu bar widget that shows every Claude Code session you have runn
 - Answer `AskUserQuestion` questions from the widget (single choice, multiple choice or your own text).
 - Jump to the terminal that runs a session, or cross a session off when it is done.
 - Hear a sound when an agent needs you or finishes.
+- Open or close it from anywhere with **⌃⌥A** (Control + Option + A).
 
 The prompt still shows in your terminal too. Answer wherever is closer; the other side clears itself.
 
@@ -30,7 +31,7 @@ cd agent-huddle
 1. Builds the app and puts it in `~/Applications/Agent Huddle.app`.
 2. Adds a `PermissionRequest` hook to `~/.claude/settings.json` (a backup goes to `settings.json.huddle-backup`).
 3. Adds a login item (`~/Library/LaunchAgents/local.agent-huddle.plist`) so the widget starts when you log in.
-4. Starts the app. Look for the robot in the menu bar.
+4. Starts the app. Look for the robot in the menu bar, or press **⌃⌥A** (Control + Option + A) to open it.
 
 Run `./install.sh` again after you change the code.
 
