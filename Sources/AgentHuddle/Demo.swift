@@ -74,6 +74,17 @@ enum Demo {
                 ]]],
                 createdAt: 1, hookPid: 0
             )]
+        case "long":
+            let command = """
+            cd /Users/demo/projects/notes-app && rm -rf .vitest node_modules/.cache && git add -A && git commit -q -m "fix: quit works on the first try when a note has unsaved changes and the window is pinned on top" && git push origin HEAD:refs/heads/feature/very-long-branch-name-for-quit-dialog-fix --force-with-lease
+            cat <<'NOTES' > /tmp/release-notes-with-a-really-long-file-name-that-does-not-wrap.md
+            Quit dialog now waits for the save to finish.
+            NOTES
+            """
+            return [PendingRequest(
+                id: "demo-long", sessionId: "demo-infra-7", toolName: "Bash",
+                rawInput: ["command": command, "description": "Commit and push the quit fix"], createdAt: 1, hookPid: 0
+            )]
         case "queue":
             let commands = ["docker compose up -d postgres", "npm run test:integration", "rm -rf .cache/jest"]
             return commands.enumerated().map { index, command in

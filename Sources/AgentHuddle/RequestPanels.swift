@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct PermissionPanel: View {
@@ -7,14 +8,7 @@ struct PermissionPanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(request.summary)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(Color.white.opacity(0.85))
-                .lineLimit(6)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.huddleInset))
+            CommandBlock(request: request)
             HStack(spacing: 6) {
                 PillButton(title: "Allow", primary: true) { store.allow(request) }
                 if request.alwaysAllowLabel != nil {
@@ -226,5 +220,72 @@ struct QueueBar: View {
             }
         }
         .frame(height: 22)
+    }
+}
+
+struct CommandBlock: View {
+    let request: PendingRequest
+    @State private var expanded = ProcessInfo.processInfo.environment["HUDDLE_EXPAND"] != nil
+
+    private static let collapsedLines = 3
+
+    var body: some View {
+        let text = request.summary
+        let long = text.count > 110 || text.split(separator: "\n", omittingEmptySubsequences: false).count > Self.collapsedLines
+        VStack(alignment: .leading, spacing: 6) {
+            if let description = request.rawInput["description"] as? String, !description.isEmpty {
+                Text(description)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.9))
+                    .lineLimit(2)
+            }
+            Group {
+                if expanded {
+                    ScrollView(.vertical) {
+                        commandText(text)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 180)
+                } else {
+                    commandText(text)
+                        .lineLimit(Self.collapsedLines)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .clipped()
+            if long {
+                HStack(spacing: 10) {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.15)) { expanded.toggle() }
+                    } label: {
+                        Label(expanded ? "Show less" : "Show all", systemImage: expanded ? "chevron.up" : "chevron.down")
+                    }
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
+                    }
+                    Spacer()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(Color.huddleDim)
+                .labelStyle(.titleAndIcon)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.huddleInset))
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+
+    private func commandText(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(Color.white.opacity(0.85))
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
