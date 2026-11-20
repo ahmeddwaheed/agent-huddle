@@ -9,12 +9,13 @@ final class TranscriptReader {
     private var taskCreateIds: [String: String] = [:]
     private var aiTitle: String?
     private var customTitle: String?
+    private var firstPrompt: String?
 
     private(set) var steps: [Step] = []
     private(set) var todos: [TodoItem] = []
     private(set) var terminal: TerminalSnapshot?
 
-    var title: String? { customTitle ?? aiTitle }
+    var title: String? { customTitle ?? aiTitle ?? firstPrompt }
 
     private static let maxSteps = 200
     private static let initialTailBytes: UInt64 = 3 * 1024 * 1024
@@ -73,12 +74,31 @@ final class TranscriptReader {
                 handleToolUse(block)
             }
         case "user":
+            if firstPrompt == nil, obj["isMeta"] as? Bool != true, let prompt = promptText(obj) {
+                firstPrompt = prompt
+            }
             for block in contentBlocks(obj) where block["type"] as? String == "tool_result" {
                 handleToolResult(block, extra: obj["toolUseResult"])
             }
         default:
             break
         }
+    }
+
+    private func promptText(_ obj: [String: Any]) -> String? {
+        let content = (obj["message"] as? [String: Any])?["content"]
+        let raw: String
+        if let text = content as? String {
+            raw = text
+        } else if let blocks = content as? [[String: Any]], !blocks.contains(where: { $0["type"] as? String == "tool_result" }) {
+            raw = blocks.compactMap { $0["text"] as? String }.joined(separator: " ")
+        } else {
+            return nil
+        }
+        let line = raw.split(whereSeparator: \.isNewline).first.map(String.init)?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+        guard !line.isEmpty, !line.hasPrefix("<"), !line.hasPrefix("[Image") else { return nil }
+        return line.count > 60 ? String(line.prefix(57)) + "…" : line
     }
 
     private func contentBlocks(_ obj: [String: Any]) -> [[String: Any]] {

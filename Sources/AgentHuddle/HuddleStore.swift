@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Foundation
 
 @MainActor
@@ -12,6 +13,7 @@ final class HuddleStore: ObservableObject {
     @Published var otherAnswers: [String: [String: String]] = [:]
     @Published var denyNotes: [String: String] = [:]
     @Published private var focusedRequestIds: [String: String] = [:]
+    private var colorIndex: [String: Int] = [:]
     @Published var soundOn: Bool {
         didSet { UserDefaults.standard.set(soundOn, forKey: "soundOn") }
     }
@@ -39,6 +41,7 @@ final class HuddleStore: ObservableObject {
         if Demo.mode != nil {
             dismissed = [:]
             sessions = Demo.sessions()
+            assignColors()
             pending = Demo.pending()
             return
         }
@@ -72,6 +75,23 @@ final class HuddleStore: ObservableObject {
 
     var needsAttention: Bool { !pending.isEmpty }
     var anyBusy: Bool { visibleSessions.contains { $0.isBusy } }
+
+    func robotColor(_ sessionId: String) -> Color {
+        guard let index = colorIndex[sessionId] else { return .robot(for: sessionId) }
+        return Color.robotPalette[index]
+    }
+
+    private func assignColors() {
+        let live = recentSessions
+        let liveIds = Set(live.map(\.id))
+        colorIndex = colorIndex.filter { liveIds.contains($0.key) }
+        for session in live.sorted(by: { $0.startedAt < $1.startedAt }) where colorIndex[session.id] == nil {
+            let used = Set(colorIndex.values)
+            let hashed = Color.robotIndex(for: session.id)
+            let free = Color.robotPalette.indices.first { !used.contains(($0 + hashed) % Color.robotPalette.count) }
+            colorIndex[session.id] = free.map { ($0 + hashed) % Color.robotPalette.count } ?? hashed
+        }
+    }
 
     func pendingRequests(for sessionId: String) -> [PendingRequest] {
         pending.filter { $0.sessionId == sessionId }
@@ -251,6 +271,7 @@ final class HuddleStore: ObservableObject {
             previousBusy[session.id] = session.isBusy
         }
         sessions = result
+        assignColors()
     }
 
     private func loadPending() {

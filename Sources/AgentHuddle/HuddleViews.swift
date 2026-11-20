@@ -122,7 +122,7 @@ struct OlderDoneRow: View {
             HStack(spacing: 8) {
                 HStack(spacing: -8) {
                     ForEach(older.prefix(4)) { session in
-                        MiniRobot(color: .robot(for: session.id)).scaleEffect(0.75)
+                        MiniRobot(color: store.robotColor(session.id)).scaleEffect(0.75)
                     }
                 }
                 Text("\(older.count) done earlier")
@@ -153,7 +153,7 @@ struct SessionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center, spacing: 10) {
-                RobotAvatar(color: .robot(for: session.id), size: 26, active: session.isBusy, dim: !session.isBusy && pending == nil)
+                RobotAvatar(color: store.robotColor(session.id), size: 26, active: session.isBusy, dim: !session.isBusy && pending == nil)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(session.displayTitle)
                         .font(.system(size: 13, weight: .semibold))
@@ -216,7 +216,7 @@ struct DetailHeader: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 4) {
                     ForEach(store.recentSessions) { other in
-                        MiniRobot(color: .robot(for: other.id), selected: other.id == session.id)
+                        MiniRobot(color: store.robotColor(other.id), selected: other.id == session.id)
                             .onTapGesture { store.selectedId = other.id }
                     }
                 }
@@ -240,7 +240,7 @@ struct DetailView: View {
         let pending = store.pendingRequest(for: session.id)
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center, spacing: 12) {
-                RobotAvatar(color: .robot(for: session.id), size: 34, active: session.isBusy)
+                RobotAvatar(color: store.robotColor(session.id), size: 34, active: session.isBusy)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(session.displayTitle).font(.system(size: 14, weight: .semibold)).lineLimit(2)
                     Text(sessionSubtitle(session, pending: pending, waiting: store.pendingRequests(for: session.id).count))

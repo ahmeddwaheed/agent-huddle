@@ -15,6 +15,8 @@ A small macOS menu bar widget that shows every Claude Code session you have runn
 - Jump to the terminal that runs a session, or cross a session off when it is done.
 - When an agent needs you, the widget opens by itself on that agent. It does not take keyboard focus from the app you use.
 - Hear a sound when an agent needs you or finishes.
+- In a full-screen app (menu bar hidden) you get a macOS notification instead, with **Allow** and **Deny** buttons on it.
+- Every visible agent gets its own robot color. Sessions without an AI title show their first prompt as the title.
 - Open or close it from anywhere with **⌃⌥A** (Control + Option + A).
 - Sessions that have been idle for more than 1 hour go into one "done earlier" row.
 

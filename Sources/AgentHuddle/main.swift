@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var hotKey: HotKey?
     private var keyMonitor: Any?
+    private var notifier: Notifier?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -28,9 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         store.closePopover = { [weak self] in self?.popover.performClose(nil) }
         store.onNewRequest = { [weak self] request in self?.showAttention(for: request) }
+        notifier = Notifier(store: store) { [weak self] sessionId in self?.openFromNotification(sessionId: sessionId) }
         store.objectWillChange
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in self?.updateButton() }
+            .sink { [weak self] _ in
+                self?.updateButton()
+                self?.notifier?.removeAnswered()
+            }
             .store(in: &cancellables)
         updateButton()
 
@@ -78,7 +83,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
     }
 
+    private func openFromNotification(sessionId: String) {
+        guard NSMenu.menuBarVisible(), let button = statusItem.button else {
+            if let session = store.session(sessionId) { store.jump(to: session) }
+            return
+        }
+        store.selectedId = sessionId
+        if !popover.isShown {
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        }
+        focusPopover()
+    }
+
     private func showAttention(for request: PendingRequest) {
+        if !NSMenu.menuBarVisible() {
+            notifier?.notify(request)
+        }
         if popover.isShown {
             let current = store.selectedId.flatMap { store.pendingRequest(for: $0) }
             if current == nil { store.selectedId = request.sessionId }

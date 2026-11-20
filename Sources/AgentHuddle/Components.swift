@@ -17,11 +17,17 @@ extension Color {
         Color(red: 0.62, green: 0.48, blue: 0.92),
         Color(red: 0.38, green: 0.80, blue: 0.58),
         Color(red: 0.33, green: 0.78, blue: 0.86),
+        Color(red: 0.93, green: 0.80, blue: 0.35),
+        Color(red: 0.88, green: 0.42, blue: 0.38),
     ]
 
-    static func robot(for id: String) -> Color {
+    static func robotIndex(for id: String) -> Int {
         let hash = id.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) & 0xFFFF }
-        return robotPalette[hash % robotPalette.count]
+        return hash % robotPalette.count
+    }
+
+    static func robot(for id: String) -> Color {
+        robotPalette[robotIndex(for: id)]
     }
 }
 
